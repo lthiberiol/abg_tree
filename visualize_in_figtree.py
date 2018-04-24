@@ -27,31 +27,66 @@ refseq_summary.set_index( 'assembly_accession', inplace=True )
 
 assembly_summary = refseq_summary.append(genbank_summary)
 
-for tree_file in os.listdir('phylogeny/'):
-    if not tree_file.endswith('aln.treefile'):
+tree_folder = 'new_trees'
+for tree_file in os.listdir(tree_folder):
+    #if not tree_file.endswith('aln.treefile'):
+    if not tree_file.startswith('RAxML_bestTree.'):
         continue
 
-    tree = ete3.Tree('phylogeny/%s' %tree_file)
+    tree = ete3.Tree('%s/%s' %(tree_folder, tree_file), format=1)
     taxa = {'class':set(), 'phylum':set(), 'order':set()}
-    out  = open('phylogeny/%s.figTree' %tree_file, 'wb')
+    out  = open('%s/%s.figTree' %(tree_folder, tree_file), 'wb')
     out.write("#NEXUS\nbegin taxa;\n\tdimensions ntax=%i;\n\ttaxlabels\n" %len(tree))
-    for leaf in tree.get_leaves():
-        if leaf.name.startswith('GCF_') or leaf.name.startswith('GCA_'):
-            genome, gene = re.search('^(GC[FA]_\d+\.\d+)_(\S+)$', leaf.name).groups()
+    for node in tree.traverse():
+        if node.is_leaf():
+            if node.name.startswith('GCF_') or node.name.startswith('GCA_'):
+                genome, gene = re.search('^(GC[FA]_\d+\.\d+)\|(\S+)$', node.name).groups()
+            else:
+                genome, gene = re.search('^(\S+)_(\S+)$', node.name).groups()
+
+            if genome not in assembly_summary.index:
+                out.write('\t%s\n' %(node.name))
+                continue
+
+            out.write('\t%s ' %(node.name))
+            comment = []
+            for rank in ['organism_name', 'class', 'phylum', 'order']:
+                comment.append('tax_%s="%s"' %(rank, assembly_summary.loc[genome, rank]))
+            out.write('[&%s]\n' %' '.join(comment))
+
         else:
-            genome, gene = re.search('^(\S+)_(\S+)$', leaf.name).groups()
+            if node.name:
+                aLRT, UFBoot = node.name.split('/')
+                node.support = float(UFBoot)
 
-        if genome not in assembly_summary.index:
-            out.write('\t%s\n' %(leaf.name))
-            continue
-
-        out.write('\t%s ' %(leaf.name))
-        comment = []
-        for rank in ['organism_name', 'class', 'phylum', 'order']:
-            comment.append('tax_%s="%s"' %(rank, assembly_summary.loc[genome, rank]))
-
-        out.write('[&%s]\n' %' '.join(comment))
     out.write(';\nend;\n')
-
     out.write('begin trees;\n\ttree tree_1 = [&R] %s\nend;' %tree.write())
     out.close()
+
+#
+# single tree
+tree = ete3.Tree('%s/%s' %(tree_folder, tree_file), format=1)
+taxa = {'class':set(), 'phylum':set(), 'order':set()}
+out  = open('%s/%s.figTree' %(tree_folder, tree_file), 'wb')
+out.write("#NEXUS\nbegin taxa;\n\tdimensions ntax=%i;\n\ttaxlabels\n" %len(tree))
+for node in tree.traverse():
+    if node.is_leaf():
+
+        if node.name not in assembly_summary.index:
+            out.write('\t%s\n' %(node.name))
+            continue
+
+        out.write('\t%s ' %(node.name))
+        comment = []
+        for rank in ['organism_name', 'class', 'phylum', 'order']:
+            comment.append('tax_%s="%s"' %(rank, assembly_summary.loc[node.name, rank]))
+        out.write('[&%s]\n' %' '.join(comment))
+
+    else:
+        if node.name:
+            aLRT, UFBoot = node.name.split('/')
+            node.support = float(UFBoot)
+
+out.write(';\nend;\n')
+out.write('begin trees;\n\ttree tree_1 = [&R] %s\nend;' %tree.write())
+out.close()
