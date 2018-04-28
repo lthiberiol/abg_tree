@@ -65,6 +65,9 @@ for tree_file in os.listdir(tree_folder):
 
 #
 # single tree
+os.chdir('/work/abg_tree/concatenated_trees/2nd_try')
+tree_folder = '.'
+tree_file   = 'concatenated_partitions.treefile'
 tree = ete3.Tree('%s/%s' %(tree_folder, tree_file), format=1)
 taxa = {'class':set(), 'phylum':set(), 'order':set()}
 out  = open('%s/%s.figTree' %(tree_folder, tree_file), 'wb')
